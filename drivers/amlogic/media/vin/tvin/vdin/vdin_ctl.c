@@ -1861,6 +1861,30 @@ void vdin_set_hdr(struct vdin_dev_s *devp)
 #endif
 
 #ifndef VDIN_BRINGUP_NO_AMLVECM
+	/*
+	 * When the hardware supports 10-bit capture and the signal is
+	 * HDR10/HDR10+/HLG, bypass HDR tone mapping to preserve the
+	 * original dynamic range. The downstream encoder (e.g. Wave521)
+	 * can encode 10-bit HDR natively.
+	 *
+	 * We cannot check source_bitdepth here because it is forced to
+	 * 8-bit in V4L2 mode by vdin_set_bitdepth(). We also cannot
+	 * check prop.colordepth because the V4L2 start path does not
+	 * set it. Instead we rely on color_depth_support (from DTS) to
+	 * confirm the hardware is 10-bit capable, combined with the
+	 * HDR signal type which inherently implies >=10-bit content.
+	 */
+	if ((devp->color_depth_support & VDIN_WR_COLOR_DEPTH_10BIT) &&
+	    (video_format == SIGNAL_HDR10 ||
+	     video_format == SIGNAL_HDR10PLUS ||
+	     video_format == SIGNAL_HLG)) {
+		pr_info("%s fmt:%d bypass HDR (hw 10bit support=0x%x)\n",
+			__func__, video_format, devp->color_depth_support);
+		hdr_set(VDIN1_HDR, HDR_BYPASS | HLG_BYPASS, VPP_TOP0);
+		devp->frame_drop_num = 1;
+		return;
+	}
+
 	pr_info("%s fmt:%d\n", __func__, video_format);
 	switch (video_format) {
 	case SIGNAL_HDR10:
